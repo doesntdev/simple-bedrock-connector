@@ -9,6 +9,15 @@ venv/
 # SAM
 .aws-sam/
 
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
+.terraform.lock.hcl
+terraform.tfvars
+infra/terraform/.build/
+
 # IDE
 .idea/
 .vscode/

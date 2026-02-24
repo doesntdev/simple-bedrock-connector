@@ -72,18 +72,23 @@ flowchart LR
 
 ### 1. Deploy Infrastructure
 
+#### Option A: SAM (quickest)
 ```bash
 cd infra
 sam build
 sam deploy --guided
 ```
 
-SAM will prompt for:
-- **Stack name**: `simple-bedrock-connector`
-- **Region**: `us-east-1` (or wherever you have Bedrock access)
-- **Confirm changeset**: Yes
+#### Option B: Terraform
+```bash
+cd infra/terraform
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform plan
+terraform apply
+```
 
-Save the **API endpoint URL** from the output — you'll need it.
+Both options create the same resources. Save the **API endpoint URL** from the output — you'll need it.
 
 ### 2. Generate a Token
 
@@ -338,13 +343,27 @@ simple-bedrock-connector/
 ├── README.md                          # This file
 ├── LICENSE                            # MIT
 ├── .gitignore
+├── pyproject.toml                     # Pytest config
 ├── scripts/
 │   ├── generate_token.py              # IAM-authenticated token generator
 │   └── requirements.txt               # boto3
 ├── lambda/
 │   └── handler.py                     # API Gateway → Bedrock proxy
 ├── infra/
-│   └── template.yaml                  # SAM/CloudFormation template
+│   ├── template.yaml                  # SAM/CloudFormation template
+│   └── terraform/                     # Terraform alternative
+│       ├── README.md
+│       ├── main.tf                    # Provider config
+│       ├── variables.tf               # Configurable inputs
+│       ├── iam.tf                     # Lambda role + policies
+│       ├── lambda.tf                  # Function + CloudWatch logs
+│       ├── api_gateway.tf             # REST API + CORS + routes
+│       ├── outputs.tf                 # Endpoint URLs + ARNs
+│       └── terraform.tfvars.example   # Example variables
+├── tests/
+│   ├── conftest.py                    # Path setup
+│   ├── requirements.txt              # pytest, moto, boto3
+│   └── test_handler.py               # 52 tests
 └── docs/
     └── architecture.html              # Interactive architecture diagram
 ```
@@ -390,12 +409,12 @@ Redeploy with `sam build && sam deploy`.
 
 ## Roadmap
 
+- [x] Terraform alternative to SAM
 - [ ] Streaming support (`stream: true` → Server-Sent Events)
 - [ ] `/v1/models` endpoint (list available models)
 - [ ] Token usage quotas per identity
 - [ ] Rate limiting per identity
 - [ ] Multi-region failover
-- [ ] Terraform alternative to SAM
 
 ---
 
