@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bedrock Proxy Architecture</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0e1a;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: #e2e8f0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 30px 20px;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #f8fafc;
+    margin-bottom: 6px;
+    letter-spacing: -0.5px;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: #64748b;
+    margin-bottom: 32px;
+  }
+  .diagram {
+    position: relative;
+    width: 900px;
+    height: 620px;
+  }
+
+  /* Zones */
+  .zone {
+    position: absolute;
+    border-radius: 16px;
+    border: 1.5px dashed;
+    padding: 12px 16px;
+  }
+  .zone-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-bottom: 8px;
+  }
+  .zone-local {
+    left: 10px; top: 10px;
+    width: 260px; height: 580px;
+    border-color: #334155;
+    background: rgba(30, 41, 59, 0.3);
+  }
+  .zone-local .zone-label { color: #94a3b8; }
+  .zone-aws {
+    left: 310px; top: 10px;
+    width: 570px; height: 580px;
+    border-color: #1e3a5f;
+    background: rgba(14, 35, 64, 0.35);
+  }
+  .zone-aws .zone-label { color: #f59e0b; }
+
+  /* Nodes */
+  .node {
+    position: absolute;
+    border-radius: 12px;
+    padding: 14px 18px;
+    text-align: center;
+    min-width: 180px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .node:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .node-icon {
+    font-size: 28px;
+    margin-bottom: 6px;
+  }
+  .node-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 3px;
+  }
+  .node-desc {
+    font-size: 11px;
+    color: #94a3b8;
+    line-height: 1.4;
+  }
+
+  /* Node styles */
+  .n-script {
+    left: 40px; top: 80px;
+    background: linear-gradient(135deg, #1e293b, #0f172a);
+    border: 1.5px solid #3b82f6;
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
+  }
+  .n-iam {
+    left: 40px; top: 230px;
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border: 1.5px solid #f59e0b;
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.12);
+  }
+  .n-secrets {
+    left: 350px; top: 80px;
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border: 1.5px solid #ef4444;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.12);
+  }
+  .n-lambda {
+    left: 350px; top: 250px;
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border: 1.5px solid #f59e0b;
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.15);
+    min-width: 220px;
+  }
+  .n-cloudwatch {
+    left: 640px; top: 80px;
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border: 1.5px solid #ec4899;
+    box-shadow: 0 0 20px rgba(236, 72, 153, 0.12);
+  }
+  .n-bedrock {
+    left: 640px; top: 280px;
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border: 1.5px solid #8b5cf6;
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
+  }
+  .n-tools {
+    left: 40px; top: 420px;
+    background: linear-gradient(135deg, #1e293b, #0f172a);
+    border: 1.5px solid #10b981;
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.12);
+    min-width: 200px;
+  }
+  .n-apigw {
+    left: 350px; top: 440px;
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border: 1.5px solid #f59e0b;
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.12);
+    min-width: 220px;
+  }
+
+  /* SVG arrows */
+  svg.arrows {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+  .arrow-line {
+    stroke-width: 2;
+    fill: none;
+  }
+  .arrow-head {
+    stroke-width: 1.5;
+  }
+
+  /* Flow labels */
+  .flow-label {
+    position: absolute;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+  }
+
+  .fl-1 {
+    left: 90px; top: 190px;
+    color: #60a5fa;
+    background: rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+  }
+  .fl-2 {
+    left: 270px; top: 55px;
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+  }
+  .fl-3 {
+    left: 270px; top: 310px;
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+  }
+  .fl-4 {
+    left: 590px; top: 190px;
+    color: #f472b6;
+    background: rgba(236, 72, 153, 0.12);
+    border: 1px solid rgba(236, 72, 153, 0.25);
+  }
+  .fl-5 {
+    left: 600px; top: 370px;
+    color: #a78bfa;
+    background: rgba(139, 92, 246, 0.12);
+    border: 1px solid rgba(139, 92, 246, 0.25);
+  }
+  .fl-6 {
+    left: 145px; top: 390px;
+    color: #34d399;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+  }
+  .fl-7 {
+    left: 500px; top: 395px;
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+  }
+  .fl-8 {
+    left: 270px; top: 465px;
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+  }
+
+  /* Legend */
+  .legend {
+    margin-top: 24px;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #94a3b8;
+  }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+
+  /* Step badges */
+  .step {
+    position: absolute;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: #3b82f6;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+  <h1>🏗️ Bedrock Proxy — OpenAI-Compatible Gateway</h1>
+  <p class="subtitle">Local auth script → Lambda API → Bedrock → AI coding tools</p>
+
+  <div class="diagram">
+    <!-- Zones -->
+    <div class="zone zone-local">
+      <div class="zone-label">🖥️ Local Machine</div>
+    </div>
+    <div class="zone zone-aws">
+      <div class="zone-label">☁️ AWS Cloud</div>
+    </div>
+
+    <!-- Nodes -->
+    <div class="node n-script">
+      <div class="node-icon">🐍</div>
+      <div class="node-title">Auth Script</div>
+      <div class="node-desc">Python CLI<br>Generates bearer token<br>IAM-authenticated</div>
+    </div>
+
+    <div class="node n-iam">
+      <div class="node-icon">🔐</div>
+      <div class="node-title">AWS IAM</div>
+      <div class="node-desc">Identity &amp; credentials<br>STS assume-role</div>
+    </div>
+
+    <div class="node n-secrets">
+      <div class="node-icon">🗝️</div>
+      <div class="node-title">Secrets Manager</div>
+      <div class="node-desc">Stores token → identity<br>mapping (TTL-based)</div>
+    </div>
+
+    <div class="node n-lambda">
+      <div class="node-icon">⚡</div>
+      <div class="node-title">Lambda Function</div>
+      <div class="node-desc">API Gateway endpoint<br>Validates token + ID<br>Routes to Bedrock</div>
+    </div>
+
+    <div class="node n-cloudwatch">
+      <div class="node-icon">📊</div>
+      <div class="node-title">CloudWatch</div>
+      <div class="node-desc">Request logging<br>Usage metrics<br>Cost tracking</div>
+    </div>
+
+    <div class="node n-bedrock">
+      <div class="node-icon">🧠</div>
+      <div class="node-title">AWS Bedrock</div>
+      <div class="node-desc">LLM inference<br>Claude / Llama / etc<br>Model routing</div>
+    </div>
+
+    <div class="node n-tools">
+      <div class="node-icon">🛠️</div>
+      <div class="node-title">AI Coding Tools</div>
+      <div class="node-desc">Cursor / Copilot / Cline<br>OpenAI-compatible client<br>POST /v1/chat/completions</div>
+    </div>
+
+    <div class="node n-apigw">
+      <div class="node-icon">🌐</div>
+      <div class="node-title">API Gateway</div>
+      <div class="node-desc">HTTPS endpoint<br>Bearer token auth<br>OpenAI-format API</div>
+    </div>
+
+    <!-- SVG Arrows -->
+    <svg class="arrows" viewBox="0 0 900 620">
+      <defs>
+        <marker id="ah-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <path d="M0,0 L8,3 L0,6" fill="#3b82f6" class="arrow-head"/>
+        </marker>
+        <marker id="ah-red" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <path d="M0,0 L8,3 L0,6" fill="#ef4444" class="arrow-head"/>
+        </marker>
+        <marker id="ah-amber" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <path d="M0,0 L8,3 L0,6" fill="#f59e0b" class="arrow-head"/>
+        </marker>
+        <marker id="ah-pink" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <path d="M0,0 L8,3 L0,6" fill="#ec4899" class="arrow-head"/>
+        </marker>
+        <marker id="ah-purple" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <path d="M0,0 L8,3 L0,6" fill="#8b5cf6" class="arrow-head"/>
+        </marker>
+        <marker id="ah-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <path d="M0,0 L8,3 L0,6" fill="#10b981" class="arrow-head"/>
+        </marker>
+      </defs>
+
+      <!-- 1: Script → IAM (auth) -->
+      <path d="M130,165 L130,228" class="arrow-line" stroke="#3b82f6" marker-end="url(#ah-blue)"/>
+
+      <!-- 2: Script → Secrets Manager (store token) -->
+      <path d="M225,120 L348,120" class="arrow-line" stroke="#ef4444" marker-end="url(#ah-red)"/>
+
+      <!-- 3: Tools → API GW (request) -->
+      <path d="M245,470 L348,470" class="arrow-line" stroke="#f59e0b" marker-end="url(#ah-amber)"/>
+
+      <!-- 4: API GW → Lambda -->
+      <path d="M460,438 L460,340" class="arrow-line" stroke="#f59e0b" marker-end="url(#ah-amber)"/>
+
+      <!-- 5: Lambda → Secrets (validate) -->
+      <path d="M440,248 L440,168" class="arrow-line" stroke="#ef4444" marker-end="url(#ah-red)"/>
+
+      <!-- 6: Lambda → CloudWatch (log) -->
+      <path d="M575,280 L638,170" class="arrow-line" stroke="#ec4899" marker-end="url(#ah-pink)"/>
+
+      <!-- 7: Lambda → Bedrock (inference) -->
+      <path d="M575,310 L638,310" class="arrow-line" stroke="#8b5cf6" marker-end="url(#ah-purple)"/>
+
+      <!-- 8: Bedrock → Lambda (response) -->
+      <path d="M638,330 L575,330" class="arrow-line" stroke="#8b5cf6" stroke-dasharray="6,4" marker-end="url(#ah-purple)"/>
+
+      <!-- 9: Lambda → API GW → Tools (response back) -->
+      <path d="M348,480 L245,480" class="arrow-line" stroke="#10b981" stroke-dasharray="6,4" marker-end="url(#ah-green)"/>
+    </svg>
+
+    <!-- Step badges -->
+    <div class="step" style="left:118px; top:185px;">1</div>
+    <div class="step" style="left:280px; top:108px; background:#ef4444;">2</div>
+    <div class="step" style="left:280px; top:460px; background:#f59e0b;">3</div>
+    <div class="step" style="left:448px; top:385px; background:#f59e0b;">4</div>
+    <div class="step" style="left:428px; top:200px; background:#ef4444;">5</div>
+    <div class="step" style="left:600px; top:210px; background:#ec4899;">6</div>
+    <div class="step" style="left:600px; top:298px; background:#8b5cf6;">7</div>
+    <div class="step" style="left:280px; top:478px; background:#10b981;">8</div>
+
+    <!-- Flow labels -->
+    <div class="flow-label fl-1">IAM Auth</div>
+    <div class="flow-label fl-2">Store token + identity</div>
+    <div class="flow-label fl-3"></div>
+    <div class="flow-label fl-4">Log activity</div>
+    <div class="flow-label fl-5">Invoke model</div>
+    <div class="flow-label fl-6">OpenAI response</div>
+    <div class="flow-label fl-7">Validate token</div>
+    <div class="flow-label fl-8">token + ID + payload</div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>Authentication</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>Token / Secret</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>API Request</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ec4899"></div>Logging</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6"></div>LLM Inference</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div>Response</div>
+    <div class="legend-item">— Solid = request</div>
+    <div class="legend-item">--- Dashed = response</div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,89 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Simple Bedrock Connector - OpenAI-compatible gateway for AWS Bedrock
+
+Parameters:
+  StageName:
+    Type: String
+    Default: v1
+    Description: API Gateway stage name
+
+Globals:
+  Function:
+    Timeout: 120
+    Runtime: python3.12
+    MemorySize: 256
+
+Resources:
+  # API Gateway
+  BedrockApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: simple-bedrock-connector
+      StageName: !Ref StageName
+      Auth:
+        DefaultAuthorizer: NONE
+      Cors:
+        AllowMethods: "'POST, OPTIONS'"
+        AllowHeaders: "'Content-Type, Authorization'"
+        AllowOrigin: "'*'"
+
+  # Lambda Function
+  ConnectorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: simple-bedrock-connector
+      CodeUri: ../lambda/
+      Handler: handler.handler
+      Description: OpenAI-to-Bedrock request proxy with token auth
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            # Secrets Manager - read tokens
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:sbc/tokens/*'
+            # Bedrock - invoke models
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream
+                - bedrock:Converse
+                - bedrock:ConverseStream
+              Resource: '*'
+            # CloudWatch Logs (auto-granted but explicit)
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: '*'
+      Events:
+        ChatCompletions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BedrockApi
+            Path: /v1/chat/completions
+            Method: POST
+        Models:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BedrockApi
+            Path: /v1/models
+            Method: GET
+
+  # CloudWatch Log Group (90-day retention)
+  ConnectorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ConnectorFunction}'
+      RetentionInDays: 90
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub 'https://${BedrockApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}'
+  FunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt ConnectorFunction.Arn
