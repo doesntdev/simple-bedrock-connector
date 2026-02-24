@@ -92,15 +92,15 @@ cd scripts
 pip install -r requirements.txt
 
 python generate_token.py \
-  --identity "logan@dev" \
+  --identity "jane.doe@dev" \
   --ttl 30d \
   --region us-east-1
 ```
 
 Output:
 ```
-✓ Authenticated as: arn:aws:iam::123456789:user/logan
-✓ Token generated for identity: logan@dev
+✓ Authenticated as: arn:aws:iam::123456789:user/jane.doe
+✓ Token generated for identity: jane.doe@dev
 ✓ Stored in Secrets Manager: sbc/tokens/a8Kx9mPq2bNr
 ✓ Expires: 2026-03-26T04:57:00+00:00
 
@@ -193,13 +193,13 @@ You can also pass a full Bedrock model ID:
 
 ```bash
 # Developer token (30 days)
-python generate_token.py --identity "logan@dev" --ttl 30d
+python generate_token.py --identity "jane.doe@dev" --ttl 30d
 
 # CI pipeline (7 days)
 python generate_token.py --identity "ci-pipeline" --ttl 7d
 
 # Team member (90 days)
-python generate_token.py --identity "alex@team" --ttl 90d
+python generate_token.py --identity "john.smith@team" --ttl 90d
 ```
 
 ### Token Lifecycle
@@ -236,7 +236,7 @@ Every request is logged with structured JSON:
 ```json
 {
   "event": "request",
-  "identity": "logan@dev",
+  "identity": "jane.doe@dev",
   "model_requested": "gpt-4o",
   "model_resolved": "anthropic.claude-4-sonnet-20250514-v1:0",
   "message_count": 5,
@@ -248,7 +248,7 @@ Every request is logged with structured JSON:
 ```json
 {
   "event": "response",
-  "identity": "logan@dev",
+  "identity": "jane.doe@dev",
   "model": "gpt-4o",
   "usage": {
     "prompt_tokens": 1234,
